@@ -57,6 +57,17 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: make tag-release
 
+      - name: Request formula update for the released CLI
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version="$(make -s pkg-version)"
+          jq -n --arg version "$version" \
+            '{event_type: "bump-formula", client_payload: {version: $version}}' \
+            > "$RUNNER_TEMP/bump-formula.json"
+          gh api "repos/$GH_REPO/dispatches" --input "$RUNNER_TEMP/bump-formula.json"
+
       - name: Delete the release branch
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
