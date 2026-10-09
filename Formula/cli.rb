@@ -80,10 +80,14 @@ class Cli < Formula
     system bin/"corpora", "validate", "sample.corpus"
 
     (testpath/"snapshot.json").write <<~JSON
-      {"endpoint":{"work_id":"fixture","edition_id":"e","package_id":"p","revision":"r1","document_id":"d"},"stream_id":"body","text":"Before. Linked words. After."}
+      {"endpoint":{
+        "work_id":"fixture","edition_id":"e","package_id":"p","revision":"r1","document_id":"d"
+      },"stream_id":"body","text":"Before. Linked words. After."}
     JSON
     (testpath/"endpoint.json").write <<~JSON
-      {"work_id":"fixture","edition_id":"e","package_id":"p","revision":"r1","document_id":"d","locators":[{"kind":"text","stream_id":"body","start":8,"end":20,"exact":"Linked words","prefix":"Before. ","suffix":". After."}]}
+      {"work_id":"fixture","edition_id":"e","package_id":"p","revision":"r1","document_id":"d",
+        "locators":[{"kind":"text","stream_id":"body","start":8,"end":20,
+          "exact":"Linked words","prefix":"Before. ","suffix":". After."}]}
     JSON
     assert_match "Linked words",
                  shell_output("#{bin}/corpora references retrieve endpoint.json --snapshot snapshot.json")
