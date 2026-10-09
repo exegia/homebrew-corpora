@@ -48,7 +48,7 @@ Matching endpoint:
 
 1. Verify CLI tests and the installed CLI wheel against the released core.
 2. Release the CLI through dev → next → release → main with a new VERSION.
-3. Run the existing formula bump workflow for the actual **CLI tag**. It
+3. The release workflow requests the formula bump for the actual **CLI tag**. It
    calculates the tarball checksum and updates Formula/cli.rb on main.
 4. Run macOS/Linuxbrew style, audit, install, test and the reference commands.
 
