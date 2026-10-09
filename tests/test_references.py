@@ -6,7 +6,6 @@ from corpora_cli import cli
 
 
 def fixture(tmp_path):
-    pytest.importorskip("corpora_linking", reason="requires a linking-enabled local/released build")
     from corpora_linking import Endpoint, Provenance, Reference, TextLocator, TextSnapshot
 
     base = Endpoint(
@@ -88,7 +87,6 @@ def test_stale_selection_never_relocates(tmp_path, capsys, change):
 
 
 def test_bad_json_is_usage_error(tmp_path):
-    pytest.importorskip("corpora_linking")
     path = tmp_path / "bad.json"
     path.write_text('{"id": "wrong"}')
     with pytest.raises(SystemExit) as exc:
@@ -103,7 +101,7 @@ def test_missing_core_has_actionable_error(monkeypatch, tmp_path, capsys):
     with pytest.raises(SystemExit) as exc:
         cli.main(["references", "check", str(tmp_path / "missing.json")])
     assert exc.value.code == 2
-    assert "linking-enabled build" in capsys.readouterr().err
+    assert "Reinstall corpora-cli" in capsys.readouterr().err
 
 
 def test_help_does_not_require_core(monkeypatch, capsys):

@@ -20,9 +20,8 @@ def _core():
         import corpora_linking
     except ImportError as exc:
         raise ui.fail(
-            "This corpora-py installation has no reference-linking core. "
-            "Install a linking-enabled build before using references commands; "
-            "the published corpora-py 5.0.0 wheel does not contain it."
+            "The reference-linking dependency is missing. "
+            "Reinstall corpora-cli or install corpora-linking>=0.1.0,<0.2."
         ) from exc
     return corpora_linking
 

@@ -23,17 +23,14 @@ review belong to the Python service, outside these offline commands.
 
 ## Availability
 
-This is an unreleased feature branch. The published `corpora-py 5.0.0` wheel was
-inspected and does **not** contain `corpora_linking` or `linking_api`. The command
-imports the core lazily, so normal CLI commands and `references --help` work with
-older dependencies; reference operations explain that a linking-enabled build
-is required. No dependency on an unpublished standalone package was added.
+These commands require the published `corpora-linking>=0.1.0,<0.2` dependency,
+now declared directly by the CLI. `uv sync` installs it from PyPI; no local
+Corpora core source or unpublished umbrella version is needed. The CLI feature
+still needs its own release/tag before the public Homebrew formula ships it.
 
-For development, install the local built corpora-py linking wheel into a disposable
-CLI environment with `--no-deps` after installing the CLI's usual dependencies.
-The local wheel still labels itself 5.0.0: this is a development artifact, not a
-replacement PyPI release. Alternatively run CLI tests with the core workspace
-installed and this repository's src directory on PYTHONPATH.
+Normal CLI commands and `references --help` import the core lazily; a broken
+installation reports the dependency to reinstall. Reference tests now require
+the dependency and fail rather than silently skipping when it is missing.
 
 Example snapshot (synthetic text and IDs):
 
@@ -47,30 +44,22 @@ Matching endpoint:
 {"work_id":"book","edition_id":"edition","package_id":"pkg","revision":"rev1","document_id":"d","locators":[{"kind":"text","stream_id":"body","start":8,"end":20,"exact":"Linked words","prefix":"Before. ","suffix":". After.","normalization":"preserve"}]}
 ```
 
-## Release sequence — not executed here
+## Release sequence
 
-1. Finish review of the corpora-py linking branch and choose a new release version
-   above the already published 5.0.0. Publish only after separate authorization.
-2. Set this CLI's corpora-py dependency floor to that actual linking-enabled release,
-   or add an optional dependency on an independently released linking core if the
-   repository split is adopted. Regenerate the lockfile against real artifacts.
-3. Run all CLI tests with the released core. Before that, core-dependent tests skip
-   explicitly in environments using the old published dependency; capability/help
-   tests still run. Verify installed-wheel commands and stale-anchor failures.
-4. Release the CLI through the repository's dev → next → release → main lanes.
-5. Run the existing formula bump workflow for the **CLI tag**, not the Python tag.
-   It calculates a real tarball checksum and updates Formula/cli.rb on main.
-6. On macOS/Linuxbrew, install and run brew audit/style/test and the two reference
-   commands. A dependency update alone may require reinstalling an existing keg;
-   the new CLI tag ensures the tap provides a clear upgrade path.
+1. Verify CLI tests and the installed CLI wheel against the released core.
+2. Release the CLI through dev → next → release → main with a new VERSION.
+3. Run the existing formula bump workflow for the actual **CLI tag**. It
+   calculates the tarball checksum and updates Formula/cli.rb on main.
+4. Run macOS/Linuxbrew style, audit, install, test and the reference commands.
 
-The formula URL/checksum and VERSION are deliberately unchanged until a real
-release exists. No workflow dispatch, push, formula publication, PyPI publication
-or live database changes were performed. Homebrew tooling was unavailable in the
-Linux execution workspace; local Python lint/tests/builds are not a brew test.
+The corpora-py dependency floor remains unchanged: these offline commands use
+the standalone core directly and do not require the future authenticated API
+release. Format adapters, persistent review and the API remain Corpora services.
+No fabricated package version or release checksum is used.
 
-GitHub resolves the old `exegia/corpora-cli` repository name to
-`exegia/homebrew-corpora`; do not maintain duplicate CLI changes in both clones.
+Homebrew tooling is unavailable in this execution workspace; local Python
+checks do not establish a successful brew installation. GitHub resolves the old
+exegia/corpora-cli name to exegia/homebrew-corpora; maintain changes here once.
 
 ## Existing stable formula catch-up
 
