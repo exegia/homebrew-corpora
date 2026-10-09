@@ -186,6 +186,13 @@ the passages under a section.
 
 <img src="docs/corpora-library-show.svg" alt="corpora library show output">
 
+## Reference linking
+
+The development branch adds `corpora references check` and
+`corpora references retrieve --snapshot` for offline JSON validation and exact
+text retrieval. These require a linking-enabled Python build and are not yet
+available in the published Homebrew release. See the [usage and release sequence](docs/reference-linking.md).
+
 ## Credits
 
 - **[Cody Kingham](https://github.com/Context-Fabric/context-fabric)** — for
