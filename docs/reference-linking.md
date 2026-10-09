@@ -71,3 +71,10 @@ Linux execution workspace; local Python lint/tests/builds are not a brew test.
 
 GitHub resolves the old `exegia/corpora-cli` repository name to
 `exegia/homebrew-corpora`; do not maintain duplicate CLI changes in both clones.
+
+## Existing stable formula catch-up
+
+A separate local `fix/cli-formula-v2-1-0` worktree corrects the stale v1.2.1
+formula to the already existing v2.1.0 CLI tag. The downloaded tarball VERSION
+and SHA-256 were verified. That correction does not ship these new linking
+commands: they still require the future coordinated core/CLI release above.
