@@ -50,7 +50,9 @@ Matching endpoint:
 2. Release the CLI through dev → next → release → main with a new VERSION.
 3. The release workflow requests the formula bump for the actual **CLI tag**. It
    calculates the tarball checksum and updates Formula/cli.rb on main.
-4. Run macOS/Linuxbrew style, audit, install, test and the reference commands.
+4. The bump workflow validates the updated main formula on macOS. Its test
+   retrieves an exact selection through the installed CLI and rejects a stale
+   revision, alongside the existing conversion/validation round trip.
 
 The corpora-py dependency floor remains unchanged: these offline commands use
 the standalone core directly and do not require the future authenticated API
