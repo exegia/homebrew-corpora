@@ -383,6 +383,7 @@ wheels = [
 name = "corpora-cli"
 source = { editable = "." }
 dependencies = [
+    { name = "corpora-linking" },
     { name = "corpora-py" },
     { name = "rich" },
     { name = "typer" },
@@ -397,6 +398,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "corpora-linking", specifier = ">=0.1.0,<0.2" },
     { name = "corpora-py", specifier = ">=2.2.0" },
     { name = "rich", specifier = ">=13.7" },
     { name = "typer", specifier = ">=0.26.8" },
@@ -407,6 +409,18 @@ dev = [
     { name = "fonttools", specifier = ">=4.63.0" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "ruff", specifier = ">=0.8" },
+]
+
+[[package]]
+name = "corpora-linking"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3a/e2/ef83f3cff5a718aef7049cd505ea430ce7eb428ade467fb62d36c043396c/corpora_linking-0.1.0.tar.gz", hash = "sha256:5c73905c5692997e40891e151a908fa02d8c6194b2b97ea8f3e1e53fe3d9fa6a", size = 56895, upload-time = "2026-10-09T03:55:30.802Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/39/a1/6dec9b1369cc395b3c5d7d6d82670d7e4b0fbf4104083b5a266be870aa49/corpora_linking-0.1.0-py3-none-any.whl", hash = "sha256:3c4af8ab00ab37176037371411b9ddf46b26b95a7ba148b697bf1a9945f8a98c", size = 14852, upload-time = "2026-10-09T03:55:29.933Z" },
 ]
 
 [[package]]

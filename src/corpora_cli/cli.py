@@ -82,6 +82,7 @@ from admin.services.conversion import (
 from admin.services.upload_validation import validate_upload
 
 from corpora_cli import ui
+from corpora_cli.references import app as references_app
 
 ui.style_typer_help()
 
@@ -105,6 +106,7 @@ library_app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 app.add_typer(library_app)
+app.add_typer(references_app)
 
 # Extension → format for the unambiguous cases. `.zip` is deliberately
 # absent: magic bytes and extensions can't tell a Text-Fabric dataset ZIP

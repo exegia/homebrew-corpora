@@ -21,8 +21,8 @@ Two uses of the same version series therefore coexist:
 
 - **`Formula/cli.rb`** — the corpora-cli release tag the formula
   installs. Bumped by `bump.yml` committing directly to `main` as the
-  automation App (on the `main` ruleset's bypass list); fire it manually (or
-  via `repository_dispatch`) after a release here tags `vX.Y.Z`. corpora-py
+  automation App (on the `main` ruleset's bypass list); the release workflow fires it via `repository_dispatch` after tagging
+  `vX.Y.Z`; a manual rerun remains available. corpora-py
   releases no longer bump the formula — pip resolves corpora-py from PyPI at
   install time.
 - **`VERSION`** — the package/tap semver, and the version the tag tarball
@@ -117,7 +117,7 @@ the meantime) and deletes leftover remote feature / `release/v*` heads.
 It does **not** cut the next release branch. That waits for the next promote.
 
 The tag is what the formula installs: its tarball builds the corpora-cli
-package at that `VERSION`. Run `bump.yml` after tagging to point
+package at that `VERSION`. The release workflow dispatches `bump.yml` after tagging to point
 `Formula/cli.rb` at the new tag — the formula on `main` is the published
 state `brew install` serves.
 
