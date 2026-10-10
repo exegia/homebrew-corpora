@@ -83,3 +83,17 @@ jobs:
           git add Formula/cli.rb
           git commit -m "corpora ${VERSION}"
           git push
+
+  validate:
+    name: Validate released formula
+    needs: bump
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+      - name: Audit, install and test the published CLI tag
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+        run: make ci
