@@ -19,8 +19,8 @@ class Cli < Formula
 
   desc "Convert documents into queryable .corpus text archives"
   homepage "https://github.com/exegia/homebrew-corpora"
-  url "https://github.com/exegia/homebrew-corpora/archive/refs/tags/v2.1.0.tar.gz"
-  sha256 "df5d9a0fb21689fe5f3e823c66db195eff6a1e78977a590ec3d73e6ce87bdae3"
+  url "https://github.com/exegia/homebrew-corpora/archive/refs/tags/v2.2.0.tar.gz"
+  sha256 "869594020fcf9530817f919e8d6a158b0fd964af7e85e90773a2e9d87d68a90b"
   license "MIT"
 
   depends_on "python@3.13"
@@ -78,5 +78,21 @@ class Cli < Formula
     system bin/"corpora", "convert", "sample.txt", "-o", "sample.corpus"
     assert_path_exists testpath/"sample.corpus"
     system bin/"corpora", "validate", "sample.corpus"
+
+    (testpath/"snapshot.json").write <<~JSON
+      {"endpoint":{
+        "work_id":"fixture","edition_id":"e","package_id":"p","revision":"r1","document_id":"d"
+      },"stream_id":"body","text":"Before. Linked words. After."}
+    JSON
+    (testpath/"endpoint.json").write <<~JSON
+      {"work_id":"fixture","edition_id":"e","package_id":"p","revision":"r1","document_id":"d",
+        "locators":[{"kind":"text","stream_id":"body","start":8,"end":20,
+          "exact":"Linked words","prefix":"Before. ","suffix":". After."}]}
+    JSON
+    assert_match "Linked words",
+                 shell_output("#{bin}/corpora references retrieve endpoint.json --snapshot snapshot.json")
+    (testpath/"stale.json").write (testpath/"endpoint.json").read.sub('"revision":"r1"', '"revision":"r2"')
+    assert_match "Selection is stale",
+                 shell_output("#{bin}/corpora references retrieve stale.json --snapshot snapshot.json 2>&1", 1)
   end
 end
