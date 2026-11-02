@@ -1,0 +1,111 @@
+name: Native CLI integration
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - ".github/workflows/native-cli.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-cli-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installed-wheel:
+    # Private Cargo sources require the existing org App. Never expose it to forks.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    name: native (${{ matrix.target }}, ${{ matrix.python }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.13", "3.14"]
+        target: [linux-x64, macos-arm64, macos-x64, windows-x64]
+        include:
+          - target: linux-x64
+            runner: ubuntu-22.04
+          - target: macos-arm64
+            runner: macos-26
+          - target: macos-x64
+            runner: macos-15-intel
+          - target: windows-x64
+            runner: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9
+      - run: uv python install "${{ matrix.python }}"
+      - run: rustup toolchain install stable --profile minimal
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        id: cargo-token
+        with:
+          app-id: ${{ secrets.AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
+          owner: exegia
+          repositories: |
+            corpora-py
+            corpora-core
+            corpora-tf
+            corpora-model
+          permission-contents: read
+      - name: Check out reviewed Python compatibility dependency
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: exegia/corpora-py
+          ref: 62f07b8cb2fc03992eff72b764fd14ef42641b47
+          path: native-source
+          token: ${{ steps.cargo-token.outputs.token }}
+          persist-credentials: false
+      - name: Fetch locked private dependencies without persisting credentials
+        env:
+          CARGO_SOURCE_TOKEN: ${{ steps.cargo-token.outputs.token }}
+        run: |
+          uv run --no-project --python "${{ matrix.python }}" python - <<'PY'
+          import base64, os, subprocess
+          env = os.environ.copy()
+          token = env.pop("CARGO_SOURCE_TOKEN")
+          header = base64.b64encode(("x-access-token:" + token).encode()).decode()
+          print("::add-mask::" + header, flush=True)
+          env.update(GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="http.https://github.com/.extraheader", GIT_CONFIG_VALUE_0="AUTHORIZATION: basic " + header)
+          subprocess.run(["cargo", "+stable", "fetch", "--locked", "--manifest-path", "native-source/native/corpora-python/Cargo.toml"], env=env, check=True)
+          PY
+      - name: Build ABI3 wheel
+        env:
+          CARGO_NET_OFFLINE: "true"
+          RUSTUP_TOOLCHAIN: stable
+        run: |
+          extra=()
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            # This is a runner-native feasibility wheel, NOT a manylinux release claim.
+            extra+=(--compatibility linux)
+          fi
+          uvx --python "${{ matrix.python }}" maturin==1.9.6 build --manifest-path native-source/native/corpora-python/Cargo.toml --release --locked --out dist-native "${extra[@]}"
+      - name: Test installed CLI and native route
+        run: |
+          uv venv --python "${{ matrix.python }}" .native-cli-env
+          python=.native-cli-env/bin/python
+          if [[ "${{ runner.os }}" == "Windows" ]]; then python=.native-cli-env/Scripts/python.exe; fi
+          uv pip install --python "$python" . ./native-source dist-native/*.whl 'context-fabric==0.6.0rc1' pytest
+          "$python" -m pytest tests -q
+          uv pip check --python "$python"
+      - name: Preserve wheel for review only
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: native-${{ matrix.target }}-py${{ matrix.python }}
+          path: dist-native/*.whl
+          if-no-files-found: error

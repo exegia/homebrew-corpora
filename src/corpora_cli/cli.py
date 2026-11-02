@@ -82,6 +82,7 @@ from admin.services.conversion import (
 from admin.services.upload_validation import validate_upload
 
 from corpora_cli import ui
+from corpora_cli.backend import Backend, select_converters
 from corpora_cli.references import app as references_app
 
 ui.style_typer_help()
@@ -233,12 +234,19 @@ def convert(
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite the output file if it already exists.")
     ] = False,
+    backend: Annotated[
+        Backend,
+        typer.Option(
+            help="Conversion engine; native-experimental opts into source-preserving TEI."
+        ),
+    ] = Backend.PYTHON,
 ) -> None:
     """Convert a source document into a .corpus archive."""
     source = source.expanduser()
     if not source.is_file():
         raise ui.fail(f"source file not found: {source}")
     resolved_format = _infer_format(source, source_format)
+    converters = select_converters(backend, resolved_format)
 
     # The same pre-conversion gate as POST /convert (issue #173): reject
     # obviously non-convertible bytes before spending minutes converting.
@@ -280,6 +288,7 @@ def convert(
                     source_path=source,
                     work_dir=Path(tmp) / "work",
                     source_format=resolved_format,
+                    converters=converters,
                     output_path_for=output_path_for,
                     name=name,
                     description=description,
@@ -295,6 +304,13 @@ def convert(
             raise typer.Exit(1) from exc
         except ConversionError as exc:
             ui.error(str(exc))
+            # The shared service preserves native structured errors as the
+            # cause. Render their actionable messages without changing codes
+            # or retrying a semantic failure through another engine.
+            if backend == Backend.NATIVE:
+                for diagnostic in getattr(exc.__cause__, "diagnostics", ()):
+                    if isinstance(diagnostic, dict) and diagnostic.get("message"):
+                        ui.error(str(diagnostic["message"]))
             raise typer.Exit(1) from exc
         finally:
             # Release mmap-backed loader state before the temporary corpus
@@ -818,9 +834,9 @@ def main(argv: list[str] | None = None) -> int:
             ui.note(exc.ctx.get_usage())
             ui.note(f"Try '{exc.ctx.command_path} {exc.ctx.help_option_names[0]}' for help.")
         raise SystemExit(2) from exc
-    except click_exceptions.Exit as exc:  # --help and completion exits
+    except typer.Exit as exc:  # --help and completion exits
         return int(exc.exit_code or 0)
-    except (KeyboardInterrupt, click_exceptions.Abort):
+    except (KeyboardInterrupt, typer.Abort):
         # Ctrl-C is an answer, not a crash — no traceback for it.
         ui.log(f"{ui.WARN} interrupted.", style="warning")
         return 130
