@@ -67,7 +67,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: exegia/corpora-py
-          ref: 3c53fd70999cd48b7d0dd4ab9e680785ad30e8e6
+          ref: 1cbf53b36c71c5d370a7c588426d34cc15a45743
           path: native-source
           token: ${{ steps.cargo-token.outputs.token }}
           persist-credentials: false
