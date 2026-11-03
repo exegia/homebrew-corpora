@@ -23,7 +23,7 @@ def snapshot(tmp_path, name, text):
         text=text,
     )
     path = tmp_path / f"{name}-snapshot.json"
-    path.write_text(value.model_dump_json())
+    path.write_text(value.model_dump_json(), encoding="utf-8")
     return path
 
 
@@ -74,12 +74,12 @@ def test_create_cross_work_link_check_and_retrieve(tmp_path, capsys):
         )
         == 0
     )
-    reference = json.loads(output.read_text())
+    reference = json.loads(output.read_text(encoding="utf-8"))
     assert reference["source"]["work_id"] != reference["target"]["work_id"]
     assert reference["resolution"] == "resolved"
     assert reference["review"] == "pending" and reference["publication"] == "draft"
     assert reference["provenance"]["origin"] == "manual"
-    assert json.loads(source.read_text())["locators"][0]["start"] == 10
+    assert json.loads(source.read_text(encoding="utf-8"))["locators"][0]["start"] == 10
     capsys.readouterr()
     assert command(["references", "check", str(output)]) == 0
     assert json.loads(capsys.readouterr().out)["id"] == reference["id"]
@@ -125,13 +125,13 @@ def test_repeated_quote_needs_explicit_bounds(tmp_path, capsys):
         )
         == 0
     )
-    assert json.loads(output.read_text())["locators"][0]["start"] == 9
+    assert json.loads(output.read_text(encoding="utf-8"))["locators"][0]["start"] == 9
 
 
 def test_stale_target_does_not_create_reference(tmp_path, capsys):
     path = snapshot(tmp_path, "book", "Selected words.")
     endpoint = selected(tmp_path, path, "target", "Selected words.")
-    changed = json.loads(path.read_text())
+    changed = json.loads(path.read_text(encoding="utf-8"))
     changed["endpoint"]["revision"] = "r2"
     stale = tmp_path / "stale.json"
     stale.write_text(json.dumps(changed))
@@ -216,7 +216,7 @@ def test_existing_reference_is_never_overwritten(tmp_path):
         )
         == 2
     )
-    assert output.read_text() == "existing stable reference"
+    assert output.read_text(encoding="utf-8") == "existing stable reference"
 
 
 @pytest.mark.parametrize("bounds", [["--start", "0"], ["--start", "1", "--end", "999"]])
