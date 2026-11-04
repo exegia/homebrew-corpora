@@ -53,15 +53,15 @@ class Cli < Formula
   # code signatures; on Apple Silicon the kernel then SIGKILLs the process
   # with "Code Signature Invalid" the moment such a page is executed. Re-sign
   # every Mach-O in the virtualenv after everything else has touched it —
-  # post_install runs last (and on `brew postinstall corpora` for an
+  # post_install_steps runs last (and on `brew postinstall corpora` for an
   # already-broken keg).
   # codesign is macOS-only; Linuxbrew has no codesign and no signature
   # enforcement, so skip re-signing there.
-  def post_install
-    return unless OS.mac?
-
-    Dir[libexec/"lib/**/*.so", libexec/"lib/**/*.dylib"].each do |f|
-      system "codesign", "--force", "--sign", "-", f
+  post_install_steps do
+    on_macos do
+      run "/usr/bin/find",
+          args: ["{{libexec}}/lib", "-type", "f", "(", "-name", "*.so", "-o", "-name", "*.dylib", ")",
+                 "-exec", "/usr/bin/codesign", "--force", "--sign", "-", "{}", ";"]
     end
   end
 
