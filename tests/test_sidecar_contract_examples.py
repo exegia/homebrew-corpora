@@ -24,6 +24,7 @@ def test_documented_protocol_examples_are_valid_and_ordered():
     ]
     request, accepted = sequence[1:3]
     assert request["request_id"] == accepted["request_id"]
+    assert Path(accepted["staging_path"]).is_absolute()
     assert all(item["job_id"] == accepted["job_id"] for item in sequence[3:])
     assert sequence[-1]["outcome"] == "succeeded"
     assert sequence[-1]["outputs"][0]["path"] == request["output"]["path"]
