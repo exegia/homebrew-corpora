@@ -1,8 +1,9 @@
 # Corpora CLI agent guide
 
 This repository contains the `corpora` Python CLI and the Homebrew tap that
-distributes it. The sidecar protocol in `docs/sidecar-protocol-v1.md` is a draft;
-do not describe it as implemented until the command and its tests exist.
+distributes it. The initial EPUB-to-Text-Fabric sidecar protocol is implemented
+and tested. The required `corpora-core` executables remain separate and optional;
+do not imply that this package or the Homebrew formula bundles them.
 
 - Work on a feature branch based on `dev`; do not commit directly to a release
   branch. Multiple feature branches are allowed only for related stacked PRs.

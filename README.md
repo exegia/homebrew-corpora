@@ -4,9 +4,12 @@
 
 # corpora/cli
 
-The proposed local worker protocol for the desktop app is documented in
-[Sidecar protocol v1](docs/sidecar-protocol-v1.md). It is a draft contract,
-not an implemented command or a shipped sidecar.
+The local worker protocol for the desktop app is documented in
+[Sidecar protocol v1](docs/sidecar-protocol-v1.md). `corpora sidecar --protocol 1`
+and `corpora convert-epub` implement its first EPUB-to-Text-Fabric job. The
+`corpora-core` checker and exporter are separate executables and are not bundled
+with this package; the sidecar advertises EPUB conversion only when both tools
+are available on `PATH` or configured with their `CORPORA_*_BIN` variables.
 
 Prepare texts for **C-USX (Corpora’s extended USX)** and link exact passages
 across works. C-USX is the direction for document interchange; reference linking
