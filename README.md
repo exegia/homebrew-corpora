@@ -4,6 +4,10 @@
 
 # corpora/cli
 
+The proposed local worker protocol for the desktop app is documented in
+[Sidecar protocol v1](docs/sidecar-protocol-v1.md). It is a draft contract,
+not an implemented command or a shipped sidecar.
+
 Prepare texts for **C-USX (Corpora’s extended USX)** and link exact passages
 across works. C-USX is the direction for document interchange; reference linking
 is available today. The released converter still produces `.corpus` archives.
