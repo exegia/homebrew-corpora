@@ -1,19 +1,25 @@
-# Corpora CLI sidecar protocol, version 1 (draft)
+# Corpora CLI sidecar protocol, version 1
 
 The sidecar runs local work for the Corpora desktop app. It owns process execution;
 the converter and Context-Fabric remain the sources of truth for their output.
-This contract describes an initial EPUB-to-Text-Fabric job, not a promise that a
-converter or installer is already available.
+This protocol implements an initial EPUB-to-Text-Fabric job. The EPUB validator
+and exporter remain separate `corpora-core` executables and are not currently
+bundled with the `corpora-cli` package or Homebrew formula. The sidecar advertises
+`epub_to_tf` only when both tools and the platform's atomic no-replace publish
+operation are available. Install/configure `corpora-epub-check` and `epub-to-tf`
+on `PATH`, or set `CORPORA_EPUB_CHECK_BIN` and `CORPORA_EPUB_TO_TF_BIN` to their
+absolute executable paths. Without them, `ready.capabilities` is empty and a
+start request returns `runtime_unavailable`.
 
 ## Human-facing command
 
-The intended command is `corpora convert-epub INPUT --output OUTPUT`. It invokes
+The command is `corpora convert-epub INPUT --output OUTPUT`. It invokes
 the same job implementation as the sidecar, writes human-readable progress and
 diagnostics to standard error, and writes the completed bundle path to standard
 output only on success. It exits 0 for success, 1 for a rejected or failed job,
 2 for invalid arguments or unavailable capability, and 130 for cancellation.
-Existing `corpora convert` behavior is unchanged until an implementation lands;
-this command is a proposed interface, not a currently available command.
+The existing `corpora convert` command is unchanged. This EPUB bundle path is
+separate from the released `.corpus` conversion path.
 
 ## Transport
 
@@ -128,5 +134,7 @@ cancellation of active jobs, flush terminal events if possible, then exit.
 Diagnostics and failures must be sanitized; no shell is used to construct
 commands, and the sidecar must not follow archive paths outside the staging area.
 
-This contract needs an implementation and executable conformance tests before it
-can be advertised as a shipped CLI or GPUI integration.
+The implementation has executable protocol tests with stand-in core tools. A
+release still requires packaging the actual core runtime or documenting how the
+desktop installer provides it; fake-tool tests do not establish that a packaged
+installation can perform a real conversion.
