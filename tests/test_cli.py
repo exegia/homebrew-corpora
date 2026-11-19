@@ -36,6 +36,15 @@ def _write_sample(path):
 
 
 class TestConvert:
+    def test_rejects_retired_native_backend_option(self, tmp_path, capsys):
+        source = _write_sample(tmp_path / "sample.txt")
+
+        with pytest.raises(SystemExit) as excinfo:
+            cli.main(["convert", str(source), "--backend", "native-experimental"])
+
+        assert excinfo.value.code == 2
+        assert "No such option: --backend" in capsys.readouterr().err
+
     def test_converts_plain_text_to_valid_corpus(self, tmp_path, capsys):
         source = _write_sample(tmp_path / "sample.txt")
         output = tmp_path / "out" / "sample.corpus"

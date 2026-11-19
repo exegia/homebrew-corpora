@@ -53,9 +53,11 @@ from __future__ import annotations
 import contextlib
 import gc
 import json
+import queue
 import re
 import sys
 import tempfile
+import uuid
 import zipfile
 from enum import StrEnum
 from pathlib import Path
@@ -82,8 +84,9 @@ from admin.services.conversion import (
 from admin.services.upload_validation import validate_upload
 
 from corpora_cli import ui
-from corpora_cli.backend import Backend, select_converters
 from corpora_cli.references import app as references_app
+from corpora_cli.sidecar import EpubJobManager, JobError
+from corpora_cli.sidecar import serve as serve_sidecar
 
 ui.style_typer_help()
 
@@ -234,19 +237,12 @@ def convert(
     force: Annotated[
         bool, typer.Option("--force", help="Overwrite the output file if it already exists.")
     ] = False,
-    backend: Annotated[
-        Backend,
-        typer.Option(
-            help="Conversion engine; native-experimental opts into source-preserving TEI."
-        ),
-    ] = Backend.PYTHON,
 ) -> None:
     """Convert a source document into a .corpus archive."""
     source = source.expanduser()
     if not source.is_file():
         raise ui.fail(f"source file not found: {source}")
     resolved_format = _infer_format(source, source_format)
-    converters = select_converters(backend, resolved_format)
 
     # The same pre-conversion gate as POST /convert (issue #173): reject
     # obviously non-convertible bytes before spending minutes converting.
@@ -288,7 +284,7 @@ def convert(
                     source_path=source,
                     work_dir=Path(tmp) / "work",
                     source_format=resolved_format,
-                    converters=converters,
+                    converters=None,
                     output_path_for=output_path_for,
                     name=name,
                     description=description,
@@ -304,13 +300,6 @@ def convert(
             raise typer.Exit(1) from exc
         except ConversionError as exc:
             ui.error(str(exc))
-            # The shared service preserves native structured errors as the
-            # cause. Render their actionable messages without changing codes
-            # or retrying a semantic failure through another engine.
-            if backend == Backend.NATIVE:
-                for diagnostic in getattr(exc.__cause__, "diagnostics", ()):
-                    if isinstance(diagnostic, dict) and diagnostic.get("message"):
-                        ui.error(str(diagnostic["message"]))
             raise typer.Exit(1) from exc
         finally:
             # Release mmap-backed loader state before the temporary corpus
@@ -321,6 +310,102 @@ def convert(
     assert result is not None
     ui.note(f"  {result.name} — {_human_size(result.stat().st_size)}")
     print(result)
+
+
+@app.command("convert-epub")
+def convert_epub(
+    source: Annotated[Path, typer.Argument(help="Path to a local EPUB file.", show_default=False)],
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            help="New output directory for the Text-Fabric bundle.",
+            show_default=False,
+        ),
+    ],
+    repair: Annotated[
+        bool,
+        typer.Option("--repair", help="Use the core converter's audited EPUB repair policy."),
+    ] = False,
+) -> None:
+    """Convert a local EPUB to a validated Text-Fabric bundle."""
+    manager = EpubJobManager()
+    request_id = "cli-" + uuid.uuid4().hex
+    try:
+        accepted = manager.start(
+            request_id,
+            str(source.expanduser().absolute()),
+            str(output.expanduser().absolute()),
+            repair,
+        )
+    except JobError as error:
+        ui.error(error.message)
+        invalid_request = {
+            "runtime_unavailable",
+            "invalid_input",
+            "invalid_output",
+            "output_exists",
+            "input_too_large",
+        }
+        raise typer.Exit(2 if error.code in invalid_request else 1) from error
+
+    def show_event(event: dict[str, Any]) -> None:
+        if event["type"] == "progress":
+            ui.note(f"{event['phase']}: {event['message']}")
+        elif event["type"] == "diagnostic":
+            location = event.get("location", {})
+            member = location.get("member")
+            suffix = f" ({member})" if member else ""
+            message = f"{event['code']}: {event['message']}{suffix}"
+            (ui.error if event["severity"] == "error" else ui.warn)(message)
+
+    def wait_for_result() -> dict[str, Any]:
+        while True:
+            try:
+                event = manager.events.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            if event.get("job_id") != accepted["job_id"]:
+                continue
+            if event["type"] == "finished":
+                return event
+            show_event(event)
+
+    try:
+        result = wait_for_result()
+    except KeyboardInterrupt:
+        manager.cancel(accepted["job_id"])
+        result = wait_for_result()
+
+    if result["outcome"] == "succeeded":
+        print(result["outputs"][0]["path"])
+        raise typer.Exit(0)
+    if result["outcome"] == "cancelled":
+        raise typer.Exit(130)
+    error = result.get("error", {})
+    ui.error(str(error.get("message", "The EPUB conversion failed.")))
+    raise typer.Exit(1)
+
+
+@app.command()
+def sidecar(
+    protocol: Annotated[
+        int,
+        typer.Option("--protocol", help="Sidecar protocol version."),
+    ] = 1,
+) -> int:
+    """Serve local EPUB jobs to a desktop client over newline-delimited JSON."""
+    if protocol != 1:
+        message = {
+            "protocol": 1,
+            "type": "protocol_error",
+            "code": "incompatible_protocol",
+            "message": "Protocol version 1 is required.",
+        }
+        sys.stdout.buffer.write(json.dumps(message, separators=(",", ":")).encode() + b"\n")
+        sys.stdout.buffer.flush()
+        return 2
+    return serve_sidecar()
 
 
 @app.command()
