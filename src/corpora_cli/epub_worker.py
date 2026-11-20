@@ -355,10 +355,10 @@ class _JsonReader:
             self._invalid()
 
 
-def _run_checker(checker: Path, source: Path) -> int:
+def _run_checker(checker: Path, source: Path, max_slots: int) -> int:
     try:
         process = subprocess.Popen(
-            [str(checker), str(source)],
+            [str(checker), str(source), "--max-slots", str(max_slots)],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -382,9 +382,11 @@ def _run_checker(checker: Path, source: Path) -> int:
             process.stdout.close()
 
 
-def run(source: Path, output: Path, checker: Path, converter: Path, repair: bool) -> int:
+def run(
+    source: Path, output: Path, checker: Path, converter: Path, repair: bool, max_slots: int
+) -> int:
     _write_event({"type": "progress", "phase": "validating", "message": "Checking the EPUB"})
-    check_code = _run_checker(checker, source)
+    check_code = _run_checker(checker, source, max_slots)
 
     if check_code == 1 and not repair:
         raise WorkerFailureError("invalid_epub", "EPUB validation found blocking issues.")
@@ -394,7 +396,15 @@ def run(source: Path, output: Path, checker: Path, converter: Path, repair: bool
         )
 
     _write_event({"type": "progress", "phase": "converting", "message": "Writing Text-Fabric"})
-    command = [str(converter), str(source), str(output), "--checker", str(checker)]
+    command = [
+        str(converter),
+        str(source),
+        str(output),
+        "--checker",
+        str(checker),
+        "--max-slots",
+        str(max_slots),
+    ]
     if repair:
         command.append("--repair")
     converter_code, _ = _read_command(command, output_limit=1024 * 1024)
@@ -440,9 +450,12 @@ def main() -> int:
     parser.add_argument("--checker", type=Path, required=True)
     parser.add_argument("--converter", type=Path, required=True)
     parser.add_argument("--repair", action="store_true")
+    parser.add_argument("--max-slots", type=int, required=True)
     try:
         args = parser.parse_args()
-        result = run(args.source, args.output, args.checker, args.converter, args.repair)
+        result = run(
+            args.source, args.output, args.checker, args.converter, args.repair, args.max_slots
+        )
         payload = {"type": "worker_result", "outcome": "succeeded" if result == 0 else "failed"}
     except KeyboardInterrupt:
         payload = {"type": "worker_result", "outcome": "cancelled"}

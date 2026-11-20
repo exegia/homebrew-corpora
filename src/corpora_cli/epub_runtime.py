@@ -9,6 +9,10 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+# corpora-core's HARD_MAX_SLOTS: the largest character-slot bound its tools accept.
+# The sidecar runs on the user's machine, so it uses the full bound by default.
+MAX_SLOTS = 8_000_000
+
 
 @dataclass(frozen=True)
 class EpubRuntime:

@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, BinaryIO
 
-from corpora_cli.epub_runtime import EpubRuntime, discover_epub_runtime
+from corpora_cli.epub_runtime import MAX_SLOTS, EpubRuntime, discover_epub_runtime
 
 PROTOCOL = 1
 MAX_FRAME_BYTES = 1024 * 1024
@@ -368,7 +368,12 @@ class EpubJobManager:
             return sum(not job.finished for job in self.jobs.values())
 
     def start(
-        self, request_id: str, source_value: object, output_value: object, repair: bool
+        self,
+        request_id: str,
+        source_value: object,
+        output_value: object,
+        repair: bool,
+        max_slots: int = MAX_SLOTS,
     ) -> dict[str, Any]:
         if self.runtime is None:
             raise JobError("runtime_unavailable", "The EPUB conversion tools are not installed.")
@@ -412,6 +417,8 @@ class EpubJobManager:
                 str(self.runtime.checker),
                 "--converter",
                 str(self.runtime.converter),
+                "--max-slots",
+                str(max_slots),
             ]
             if repair:
                 command.append("--repair")
@@ -795,14 +802,22 @@ def _handle_request(
                 raise JobError(
                     "invalid_output", "Output must contain only an absolute local directory path."
                 )
-            if not isinstance(options, dict) or set(options) - {"repair"}:
+            if not isinstance(options, dict) or set(options) - {"repair", "max_slots"}:
                 raise JobError(
                     "invalid_options", "The request contains unsupported conversion options."
                 )
             repair = options.get("repair", False)
             if type(repair) is not bool:
                 raise JobError("invalid_options", "The repair option must be a boolean.")
-            accepted = manager.start(request_id, source.get("path"), output.get("path"), repair)
+            max_slots = options.get("max_slots", MAX_SLOTS)
+            if type(max_slots) is not int or not 1 <= max_slots <= MAX_SLOTS:
+                raise JobError(
+                    "invalid_options",
+                    f"The max_slots option must be an integer from 1 to {MAX_SLOTS}.",
+                )
+            accepted = manager.start(
+                request_id, source.get("path"), output.get("path"), repair, max_slots
+            )
         except JobError as error:
             write(_error(request_id, error.code, error.message))
             return False
