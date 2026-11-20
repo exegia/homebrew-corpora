@@ -15,6 +15,10 @@ from corpora_cli.cli import main
 
 CHECKER = """
 import json, pathlib, signal, sys, time
+import os
+if os.environ.get("FAKE_TOOL_LOG"):
+    with open(os.environ["FAKE_TOOL_LOG"], "a", encoding="utf-8") as log:
+        log.write(json.dumps([pathlib.Path(sys.argv[0]).name, *sys.argv[2:]]) + "\\n")
 source_path = pathlib.Path(sys.argv[1])
 source = source_path.read_bytes()
 if source.startswith(b"slow"):
@@ -43,6 +47,10 @@ sys.exit(1 if invalid else 0)
 
 CONVERTER = """
 import hashlib, json, pathlib, sys
+import os
+if os.environ.get("FAKE_TOOL_LOG"):
+    with open(os.environ["FAKE_TOOL_LOG"], "a", encoding="utf-8") as log:
+        log.write(json.dumps([pathlib.Path(sys.argv[0]).name, *sys.argv[2:]]) + "\\n")
 source, output = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 data = source.read_bytes()
 if data.startswith(b"fail-convert"):
@@ -136,7 +144,14 @@ class SidecarProcess:
         return self.process.stderr.read().decode("utf-8", errors="replace")
 
 
-def _start(request_id: str, source: Path, output: Path, *, repair: bool = False) -> dict[str, Any]:
+def _start(
+    request_id: str,
+    source: Path,
+    output: Path,
+    *,
+    repair: bool = False,
+    options: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     return {
         "protocol": 1,
         "type": "start",
@@ -144,8 +159,56 @@ def _start(request_id: str, source: Path, output: Path, *, repair: bool = False)
         "operation": "epub_to_tf",
         "input": {"path": str(source)},
         "output": {"path": str(output)},
-        "options": {"repair": repair},
+        "options": {"repair": repair} if options is None else options,
     }
+
+
+def _tool_calls(log: Path) -> list[list[str]]:
+    return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+
+
+def _run_to_finish(sidecar: SidecarProcess) -> dict[str, Any]:
+    while (event := sidecar.receive())["type"] != "finished":
+        pass
+    return event
+
+
+@pytest.mark.parametrize(
+    ("options", "expected"), [({}, "8000000"), ({"max_slots": 4000000}, "4000000")]
+)
+def test_sidecar_passes_the_slot_limit_to_both_core_tools(
+    tmp_path, tools, monkeypatch, options, expected
+):
+    log = tmp_path / "tools.log"
+    monkeypatch.setenv("FAKE_TOOL_LOG", str(log))
+    source = tmp_path / "book.epub"
+    source.write_bytes(b"valid EPUB bytes")
+    sidecar = SidecarProcess(tmp_path, tools)
+
+    sidecar.send(_start("start-1", source, tmp_path / "book-tf", options=options))
+    assert sidecar.receive()["type"] == "accepted"
+    assert _run_to_finish(sidecar)["outcome"] == "succeeded"
+    sidecar.finish()
+
+    calls = _tool_calls(log)
+    assert [call[0] for call in calls] == ["corpora-epub-check", "epub-to-tf"]
+    for call in calls:
+        assert call[call.index("--max-slots") + 1] == expected
+
+
+@pytest.mark.parametrize("max_slots", [0, 8000001, True, "4000000", 2.5])
+def test_sidecar_rejects_an_invalid_slot_limit(tmp_path, tools, max_slots):
+    source = tmp_path / "book.epub"
+    source.write_bytes(b"valid EPUB bytes")
+    sidecar = SidecarProcess(tmp_path, tools)
+
+    sidecar.send(_start("start-1", source, tmp_path / "book-tf", options={"max_slots": max_slots}))
+
+    error = sidecar.receive()
+    assert error["type"] == "error"
+    assert error["code"] == "invalid_options"
+    assert not (tmp_path / "book-tf").exists()
+    sidecar.finish()
 
 
 def test_sidecar_runs_a_complete_epub_job_and_publishes_atomically(tmp_path, tools):

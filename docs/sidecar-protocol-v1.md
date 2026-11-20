@@ -66,7 +66,11 @@ that no work started or automatically retry into the same destination.
 Only advertise operations whose required runtime is actually available. The
 initial operation takes an unencrypted EPUB, a fresh output directory, and an
 optional `repair` boolean defaulting to `false`. Repair may only use the core
-converter's audited policy. Unsupported format, unavailable converter, unsafe
+converter's audited policy, and it applies only when validation finds blocking
+issues. The optional `max_slots` integer bounds the character slots the core
+tools may project, from 1 to 8000000 (corpora-core's hard maximum). It
+defaults to 8000000 because the sidecar runs on the user's own machine; a
+smaller value fails larger books early with `EPUB_LIMIT`. Unsupported format, unavailable converter, unsafe
 input, or an existing output directory must fail explicitly. The converter
 retains the original EPUB and provenance in the bundle when it succeeds.
 
