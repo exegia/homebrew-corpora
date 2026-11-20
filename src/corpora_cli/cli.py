@@ -84,6 +84,7 @@ from admin.services.conversion import (
 from admin.services.upload_validation import validate_upload
 
 from corpora_cli import ui
+from corpora_cli.epub_runtime import DEFAULT_MAX_SLOTS
 from corpora_cli.references import app as references_app
 from corpora_cli.sidecar import EpubJobManager, JobError
 from corpora_cli.sidecar import serve as serve_sidecar
@@ -327,6 +328,14 @@ def convert_epub(
         bool,
         typer.Option("--repair", help="Use the core converter's audited EPUB repair policy."),
     ] = False,
+    max_slots: Annotated[
+        int,
+        typer.Option(
+            "--max-slots",
+            min=1,
+            help="Character-slot limit; raise it for very long books (no fixed ceiling).",
+        ),
+    ] = DEFAULT_MAX_SLOTS,
 ) -> None:
     """Convert a local EPUB to a validated Text-Fabric bundle."""
     manager = EpubJobManager()
@@ -337,6 +346,7 @@ def convert_epub(
             str(source.expanduser().absolute()),
             str(output.expanduser().absolute()),
             repair,
+            max_slots,
         )
     except JobError as error:
         ui.error(error.message)

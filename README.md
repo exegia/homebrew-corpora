@@ -4,6 +4,8 @@
 
 # corpora/cli
 
+**Docs:** [docs.exegia.co/cli](https://docs.exegia.co/cli): install, every command, and what each option does.
+
 The local worker protocol for the desktop app is documented in
 [Sidecar protocol v1](docs/sidecar-protocol-v1.md). `corpora sidecar --protocol 1`
 and `corpora convert-epub` implement its first EPUB-to-Text-Fabric job. The
@@ -159,6 +161,21 @@ corpora convert notes.txt          # format inferred from the extension
 - **TEI**: Zipped TEI (`*.tei.zip`) collections.
 
 <img src="docs/corpora-convert-help.svg" alt="corpora convert --help output" width="760">
+
+### Convert an EPUB to Text-Fabric
+
+Needs the separate `corpora-core` tools (`corpora-epub-check`, `epub-to-tf`) on
+`PATH`, or set `CORPORA_EPUB_CHECK_BIN` / `CORPORA_EPUB_TO_TF_BIN`.
+
+```bash
+corpora convert-epub book.epub --output book-tf
+corpora convert-epub long-book.epub --output long-tf --max-slots 20000000 --repair
+```
+
+`--max-slots` defaults to 8,000,000 characters and has no fixed ceiling. EPUB
+archives may be up to 500 MiB.
+
+<img src="docs/corpora-convert-epub-help.svg" alt="corpora convert-epub --help output" width="760">
 
 ### Validate
 
