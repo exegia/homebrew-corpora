@@ -68,9 +68,11 @@ initial operation takes an unencrypted EPUB, a fresh output directory, and an
 optional `repair` boolean defaulting to `false`. Repair may only use the core
 converter's audited policy, and it applies only when validation finds blocking
 issues. The optional `max_slots` integer bounds the character slots the core
-tools may project, from 1 to 8000000 (corpora-core's hard maximum). It
-defaults to 8000000 because the sidecar runs on the user's own machine; a
-smaller value fails larger books early with `EPUB_LIMIT`. Unsupported format, unavailable converter, unsafe
+tools may project. Any positive integer is accepted; corpora-core has no fixed
+ceiling, and its 500 MiB archive and expanded-byte limits still apply. It
+defaults to 8000000, above the core's own 1000000 default, because the sidecar
+runs on the user's own machine; a smaller value fails larger books early with
+`EPUB_LIMIT`. The sidecar rejects archives over 500 MiB with `input_too_large`. Unsupported format, unavailable converter, unsafe
 input, or an existing output directory must fail explicitly. The converter
 retains the original EPUB and provenance in the bundle when it succeeds.
 

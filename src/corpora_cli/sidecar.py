@@ -22,11 +22,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, BinaryIO
 
-from corpora_cli.epub_runtime import MAX_SLOTS, EpubRuntime, discover_epub_runtime
+from corpora_cli.epub_runtime import DEFAULT_MAX_SLOTS, EpubRuntime, discover_epub_runtime
 
 PROTOCOL = 1
 MAX_FRAME_BYTES = 1024 * 1024
-MAX_INPUT_BYTES = 80 * 1024 * 1024
+# Matches corpora-core's archive limit.
+MAX_INPUT_BYTES = 500 * 1024 * 1024
+INPUT_TOO_LARGE = "The EPUB archive exceeds the 500 MiB input limit."
 MAX_ACTIVE_JOBS = 2
 REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{1,128}\Z", re.ASCII)
 
@@ -160,7 +162,7 @@ def _resolve_input(value: object) -> Path:
     if not stat.S_ISREG(info.st_mode):
         raise JobError("invalid_input", "The EPUB input must be a regular file.")
     if info.st_size > MAX_INPUT_BYTES:
-        raise JobError("input_too_large", "The EPUB archive exceeds the 80 MiB input limit.")
+        raise JobError("input_too_large", INPUT_TOO_LARGE)
     return resolved
 
 
@@ -216,9 +218,7 @@ def _snapshot_source(source: Path, stage_fd: int) -> None:
         while chunk := os.read(source_fd, 1024 * 1024):
             total += len(chunk)
             if total > MAX_INPUT_BYTES:
-                raise JobError(
-                    "input_too_large", "The EPUB archive exceeds the 80 MiB input limit."
-                )
+                raise JobError("input_too_large", INPUT_TOO_LARGE)
             view = memoryview(chunk)
             while view:
                 written = os.write(target_fd, view)
@@ -373,7 +373,7 @@ class EpubJobManager:
         source_value: object,
         output_value: object,
         repair: bool,
-        max_slots: int = MAX_SLOTS,
+        max_slots: int = DEFAULT_MAX_SLOTS,
     ) -> dict[str, Any]:
         if self.runtime is None:
             raise JobError("runtime_unavailable", "The EPUB conversion tools are not installed.")
@@ -809,11 +809,10 @@ def _handle_request(
             repair = options.get("repair", False)
             if type(repair) is not bool:
                 raise JobError("invalid_options", "The repair option must be a boolean.")
-            max_slots = options.get("max_slots", MAX_SLOTS)
-            if type(max_slots) is not int or not 1 <= max_slots <= MAX_SLOTS:
+            max_slots = options.get("max_slots", DEFAULT_MAX_SLOTS)
+            if type(max_slots) is not int or max_slots < 1:
                 raise JobError(
-                    "invalid_options",
-                    f"The max_slots option must be an integer from 1 to {MAX_SLOTS}.",
+                    "invalid_options", "The max_slots option must be a positive integer."
                 )
             accepted = manager.start(
                 request_id, source.get("path"), output.get("path"), repair, max_slots

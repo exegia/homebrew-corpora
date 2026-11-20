@@ -174,7 +174,8 @@ def _run_to_finish(sidecar: SidecarProcess) -> dict[str, Any]:
 
 
 @pytest.mark.parametrize(
-    ("options", "expected"), [({}, "8000000"), ({"max_slots": 4000000}, "4000000")]
+    ("options", "expected"),
+    [({}, "8000000"), ({"max_slots": 4000000}, "4000000"), ({"max_slots": 20000000}, "20000000")],
 )
 def test_sidecar_passes_the_slot_limit_to_both_core_tools(
     tmp_path, tools, monkeypatch, options, expected
@@ -196,7 +197,7 @@ def test_sidecar_passes_the_slot_limit_to_both_core_tools(
         assert call[call.index("--max-slots") + 1] == expected
 
 
-@pytest.mark.parametrize("max_slots", [0, 8000001, True, "4000000", 2.5])
+@pytest.mark.parametrize("max_slots", [0, -1, True, "4000000", 2.5])
 def test_sidecar_rejects_an_invalid_slot_limit(tmp_path, tools, max_slots):
     source = tmp_path / "book.epub"
     source.write_bytes(b"valid EPUB bytes")
@@ -397,3 +398,38 @@ def test_convert_epub_human_command_uses_the_same_job_pipeline(
     assert "validating: Checking the EPUB" in captured.err
     assert "finalizing: Publishing the bundle" in captured.err
     assert output.is_dir()
+
+
+@pytest.mark.parametrize(
+    ("args", "expected"), [([], "8000000"), (["--max-slots", "20000000"], "20000000")]
+)
+def test_convert_epub_passes_its_slot_limit_to_both_core_tools(
+    tmp_path, tools, monkeypatch, args, expected
+):
+    log = tmp_path / "tools.log"
+    monkeypatch.setenv("FAKE_TOOL_LOG", str(log))
+    source = tmp_path / "long.epub"
+    source.write_bytes(b"valid EPUB")
+    monkeypatch.setenv("CORPORA_EPUB_CHECK_BIN", str(tools[0]))
+    monkeypatch.setenv("CORPORA_EPUB_TO_TF_BIN", str(tools[1]))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+
+    assert main(["convert-epub", str(source), "--output", str(tmp_path / "out"), *args]) == 0
+
+    calls = _tool_calls(log)
+    assert [call[0] for call in calls] == ["corpora-epub-check", "epub-to-tf"]
+    for call in calls:
+        assert call[call.index("--max-slots") + 1] == expected
+
+
+def test_convert_epub_rejects_a_non_positive_slot_limit(tmp_path, tools, monkeypatch):
+    source = tmp_path / "long.epub"
+    source.write_bytes(b"valid EPUB")
+    monkeypatch.setenv("CORPORA_EPUB_CHECK_BIN", str(tools[0]))
+    monkeypatch.setenv("CORPORA_EPUB_TO_TF_BIN", str(tools[1]))
+
+    args = ["convert-epub", str(source), "--output", str(tmp_path / "out"), "--max-slots", "0"]
+    with pytest.raises(SystemExit) as excinfo:
+        main(args)
+    assert excinfo.value.code == 2
+    assert not (tmp_path / "out").exists()
