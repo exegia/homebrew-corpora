@@ -17,6 +17,7 @@ import stat
 import subprocess
 import sys
 import threading
+import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -71,6 +72,43 @@ def _encode(message: dict[str, Any]) -> bytes:
     if len(frame) > MAX_FRAME_BYTES:
         raise JobError("diagnostic_too_large", "A protocol message exceeds the frame limit.")
     return frame
+
+
+def _process_group_alive(pgid: int) -> bool:
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _wait_for_process_group(pgid: int, timeout: float) -> bool:
+    deadline = time.monotonic() + timeout
+    while _process_group_alive(pgid):
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.02)
+    return True
+
+
+def _stop_process_group(pgid: int) -> None:
+    """Stop descendants that outlive the reaped worker, which leads its own session.
+
+    A checker or converter can ignore SIGINT and SIGTERM; the worker then exits on
+    SIGTERM while they keep running. Callers reap the worker first, so no member of
+    the group is a zombie that only this process could collect.
+    """
+    for signum in (signal.SIGTERM, signal.SIGKILL):
+        if not _process_group_alive(pgid):
+            return
+        try:
+            os.killpg(pgid, signum)
+        except ProcessLookupError:
+            return
+        if _wait_for_process_group(pgid, 2):
+            return
 
 
 def _cache_lock_directory() -> Path:
@@ -529,20 +567,19 @@ class EpubJobManager:
             pass
         try:
             process.wait(timeout=5)
-            return
         except subprocess.TimeoutExpired:
-            pass
-        for signum in (signal.SIGTERM, signal.SIGKILL):
-            try:
-                os.killpg(process.pid, signum)
-            except ProcessLookupError:
-                pass
-            try:
-                process.wait(timeout=2)
-                return
-            except subprocess.TimeoutExpired:
-                continue
-        process.wait()
+            for signum in (signal.SIGTERM, signal.SIGKILL):
+                try:
+                    os.killpg(process.pid, signum)
+                except ProcessLookupError:
+                    pass
+                try:
+                    process.wait(timeout=2)
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
+            process.wait()
+        _stop_process_group(process.pid)
 
     def _monitor(self, job: Job) -> None:
         result: dict[str, Any] | None = None
@@ -610,6 +647,8 @@ class EpubJobManager:
         finally:
             stdout.close()
         return_code = job.process.wait()
+        # No terminal event, staging removal or publish while any descendant runs.
+        _stop_process_group(job.process.pid)
 
         with job.guard:
             if job.finished:
