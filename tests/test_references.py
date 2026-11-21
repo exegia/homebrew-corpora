@@ -36,7 +36,7 @@ def fixture(tmp_path):
     paths = {}
     for name, model in (("endpoint", selected), ("snapshot", snapshot), ("reference", reference)):
         paths[name] = tmp_path / f"{name}.json"
-        paths[name].write_text(model.model_dump_json())
+        paths[name].write_text(model.model_dump_json(), encoding="utf-8")
     return paths, reference
 
 
@@ -70,7 +70,7 @@ def test_retrieve_unicode_exact_quote(tmp_path, capsys):
 )
 def test_stale_selection_never_relocates(tmp_path, capsys, change):
     paths, _ = fixture(tmp_path)
-    data = json.loads(paths["endpoint"].read_text())
+    data = json.loads(paths["endpoint"].read_text(encoding="utf-8"))
     for key, value in change.items():
         if key in ("quote", "prefix"):
             data["locators"][0]["exact" if key == "quote" else key] = value

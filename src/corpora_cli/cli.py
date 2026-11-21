@@ -53,9 +53,11 @@ from __future__ import annotations
 import contextlib
 import gc
 import json
+import queue
 import re
 import sys
 import tempfile
+import uuid
 import zipfile
 from enum import StrEnum
 from pathlib import Path
@@ -82,7 +84,10 @@ from admin.services.conversion import (
 from admin.services.upload_validation import validate_upload
 
 from corpora_cli import ui
+from corpora_cli.epub_runtime import DEFAULT_MAX_SLOTS
 from corpora_cli.references import app as references_app
+from corpora_cli.sidecar import EpubJobManager, JobError
+from corpora_cli.sidecar import serve as serve_sidecar
 
 ui.style_typer_help()
 
@@ -280,6 +285,7 @@ def convert(
                     source_path=source,
                     work_dir=Path(tmp) / "work",
                     source_format=resolved_format,
+                    converters=None,
                     output_path_for=output_path_for,
                     name=name,
                     description=description,
@@ -305,6 +311,111 @@ def convert(
     assert result is not None
     ui.note(f"  {result.name} — {_human_size(result.stat().st_size)}")
     print(result)
+
+
+@app.command("convert-epub")
+def convert_epub(
+    source: Annotated[Path, typer.Argument(help="Path to a local EPUB file.", show_default=False)],
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            help="New output directory for the Text-Fabric bundle.",
+            show_default=False,
+        ),
+    ],
+    repair: Annotated[
+        bool,
+        typer.Option("--repair", help="Use the core converter's audited EPUB repair policy."),
+    ] = False,
+    max_slots: Annotated[
+        int,
+        typer.Option(
+            "--max-slots",
+            min=1,
+            help="Character-slot limit; raise it for very long books (no fixed ceiling).",
+        ),
+    ] = DEFAULT_MAX_SLOTS,
+) -> None:
+    """Convert a local EPUB to a validated Text-Fabric bundle."""
+    manager = EpubJobManager()
+    request_id = "cli-" + uuid.uuid4().hex
+    try:
+        accepted = manager.start(
+            request_id,
+            str(source.expanduser().absolute()),
+            str(output.expanduser().absolute()),
+            repair,
+            max_slots,
+        )
+    except JobError as error:
+        ui.error(error.message)
+        invalid_request = {
+            "runtime_unavailable",
+            "invalid_input",
+            "invalid_output",
+            "output_exists",
+            "input_too_large",
+        }
+        raise typer.Exit(2 if error.code in invalid_request else 1) from error
+
+    def show_event(event: dict[str, Any]) -> None:
+        if event["type"] == "progress":
+            ui.note(f"{event['phase']}: {event['message']}")
+        elif event["type"] == "diagnostic":
+            location = event.get("location", {})
+            member = location.get("member")
+            suffix = f" ({member})" if member else ""
+            message = f"{event['code']}: {event['message']}{suffix}"
+            (ui.error if event["severity"] == "error" else ui.warn)(message)
+
+    def wait_for_result() -> dict[str, Any]:
+        while True:
+            try:
+                event = manager.events.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            if event.get("job_id") != accepted["job_id"]:
+                continue
+            if event["type"] == "finished":
+                return event
+            show_event(event)
+
+    try:
+        result = wait_for_result()
+    except KeyboardInterrupt:
+        manager.cancel(accepted["job_id"])
+        result = wait_for_result()
+
+    if result["outcome"] == "succeeded":
+        print(result["outputs"][0]["path"])
+        raise typer.Exit(0)
+    if result["outcome"] == "cancelled":
+        raise typer.Exit(130)
+    error = result.get("error", {})
+    ui.error(str(error.get("message", "The EPUB conversion failed.")))
+    raise typer.Exit(1)
+
+
+@app.command()
+def sidecar(
+    protocol: Annotated[
+        int,
+        typer.Option("--protocol", help="Sidecar protocol version."),
+    ] = 1,
+) -> int:
+    """Serve local EPUB jobs to a desktop client over newline-delimited JSON."""
+    if protocol != 1:
+        message = {
+            "protocol": 1,
+            "type": "protocol_error",
+            "code": "incompatible_protocol",
+            "message": "Protocol version 1 is required.",
+        }
+        sys.stdout.buffer.write(json.dumps(message, separators=(",", ":")).encode() + b"\n")
+        sys.stdout.buffer.flush()
+        return 2
+    return serve_sidecar()
 
 
 @app.command()
@@ -818,9 +929,9 @@ def main(argv: list[str] | None = None) -> int:
             ui.note(exc.ctx.get_usage())
             ui.note(f"Try '{exc.ctx.command_path} {exc.ctx.help_option_names[0]}' for help.")
         raise SystemExit(2) from exc
-    except click_exceptions.Exit as exc:  # --help and completion exits
+    except typer.Exit as exc:  # --help and completion exits
         return int(exc.exit_code or 0)
-    except (KeyboardInterrupt, click_exceptions.Abort):
+    except (KeyboardInterrupt, typer.Abort):
         # Ctrl-C is an answer, not a crash — no traceback for it.
         ui.log(f"{ui.WARN} interrupted.", style="warning")
         return 130

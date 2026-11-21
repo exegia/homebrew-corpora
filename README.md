@@ -4,24 +4,42 @@
 
 # corpora/cli
 
-Convert EPUBs, PDFs, HTML, TEI/XML, and plain text into queryable `.corpus`
-archives — from your terminal.
+**Docs:** [docs.exegia.co/cli](https://docs.exegia.co/cli): install, every command, and what each option does.
+
+The local worker protocol for the desktop app is documented in
+[Sidecar protocol v1](docs/sidecar-protocol-v1.md). `corpora sidecar --protocol 1`
+and `corpora convert-epub` implement its first EPUB-to-Text-Fabric job. The
+`corpora-core` checker and exporter are separate executables and are not bundled
+with this package; the sidecar advertises EPUB conversion only when both tools
+are available on `PATH` or configured with their `CORPORA_*_BIN` variables.
+
+Prepare texts for **C-USX (Corpora’s extended USX)** and link exact passages
+across works. C-USX is the direction for document interchange; reference linking
+is available today. The released converter still produces `.corpus` archives.
 
 ![GitHub Release](https://img.shields.io/github/v/release/exegia/homebrew-corpora?sort=semver&display_name=tag&style=for-the-badge&color=%23d2a24c)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/exegia/homebrew-corpora/release.yml?style=for-the-badge)
 ![Static Badge](https://img.shields.io/badge/license-MIT-black?style=for-the-badge)
 ![Static Badge](https://img.shields.io/badge/homebrew-exegia%2Fcorpora%2Fcli-black?style=for-the-badge)
 
-<p align="center">
-  <img src="docs/corpora-convert.gif" alt="corpora converting an EPUB into a .corpus archive" width="800">
-</p>
+![Create a manual link with Python, retrieve its exact passage with the CLI, and reject a stale revision](docs/corpora-references.gif)
 
-`corpora` is the terminal front end for the
-[corpora-py](https://github.com/exegia/corpora-py) toolchain: it parses a
-source document, builds a [Text-Fabric](https://annotation.github.io/text-fabric/)
-dataset from it, and packages the result as a single portable `.corpus`
-archive that the rest of the toolchain (API, MCP server, storage backends)
-can query.
+`corpora` is the terminal front end for
+[corpora-py](https://github.com/exegia/corpora-py). Its reference commands use
+[corpora-linking](https://github.com/exegia/corpora-linking), the independent,
+open-source Python package. Both automatic citations and reader-created links
+use the same version-aware reference model.
+
+**What works now:** create manual links through the Python package; check their
+JSON and retrieve exact text selections through the released CLI. Corpora’s
+Python integration can bind anchors and export approved links into supplied
+C-USX documents.
+
+**What comes next:** a document-to-C-USX CLI conversion path and a convenient
+release of the new `references select` and `references create` commands
+implemented on this branch. PDF/EPUB/HTML-to-C-USX conversion is not yet a
+released CLI command. Existing `.corpus` and Text-Fabric workflows remain
+available; no removal or deprecation deadline has been declared.
 
 ## Installation
 
@@ -67,13 +85,49 @@ curl -fsSL https://raw.githubusercontent.com/exegia/homebrew-corpora/main/instal
 `python3.13` is required; `uv` is used when present (faster resolver), else
 the `venv` module + `pip`. Relocate with `CORPORA_HOME` / `CORPORA_BIN`.
 
-## Usage
+## Start with reference linking
+
+The released Homebrew CLI includes these offline commands:
 
 ```bash
-# corpora --help for usage details
-Usage: corpora [OPTIONS] COMMAND [ARGS]...
+corpora references check reference.json
+corpora references retrieve target.json --snapshot target-snapshot.json
+```
 
-Commands: convert  validate  schema  reconcile  library
+A reference connects a source selection to a target selection or work. It keeps
+a stable ID, relationship, creator and exact document versions. Retrieval checks
+the selected quote and context at the original Unicode character offsets. If
+an anchor is stale or ambiguous, it fails instead of choosing another passage.
+
+This branch also adds `references select` and `references create` for manual
+linking from snapshots. They need the next CLI release; `check` and `retrieve`
+are already released.
+
+For a complete copy-and-run example that creates a link with Python and retrieves
+it through the CLI, see [the reference linking demo](docs/reference-linking.md).
+The GIF above shows real command results using synthetic, offline text snapshots.
+
+## C-USX direction
+
+C-USX carries document text plus explicit reference boundaries and links. The
+Python integration preserves matching reference IDs when exporting approved
+links into C-USX. The database remains authoritative for working references;
+resolution, review and publication are separate states.
+
+Creating a local link does **not** approve it or publish it into C-USX. Native
+PDF/EPUB/HTML locations and original-to-converted mappings belong to the
+conversion/service integration, outside the reusable linking core. See
+[the Python integration documentation](https://github.com/exegia/corpora-py/tree/main/specs/reference-linking)
+for supported adapters and the opt-in API configuration.
+
+## Existing corpus workflow
+
+The released `convert` command below still builds `.corpus` archives for
+Text-Fabric / Context Fabric consumers. Choose this workflow when you need
+those consumers; a `.cusx` output filename alone does not change the format.
+
+```text
+Commands: convert  validate  schema  reconcile  library  references
 ```
 
 ### Convert
@@ -107,6 +161,21 @@ corpora convert notes.txt          # format inferred from the extension
 - **TEI**: Zipped TEI (`*.tei.zip`) collections.
 
 <img src="docs/corpora-convert-help.svg" alt="corpora convert --help output" width="760">
+
+### Convert an EPUB to Text-Fabric
+
+Needs the separate `corpora-core` tools (`corpora-epub-check`, `epub-to-tf`) on
+`PATH`, or set `CORPORA_EPUB_CHECK_BIN` / `CORPORA_EPUB_TO_TF_BIN`.
+
+```bash
+corpora convert-epub book.epub --output book-tf
+corpora convert-epub long-book.epub --output long-tf --max-slots 20000000 --repair
+```
+
+`--max-slots` defaults to 8,000,000 characters and has no fixed ceiling. EPUB
+archives may be up to 500 MiB.
+
+<img src="docs/corpora-convert-epub-help.svg" alt="corpora convert-epub --help output" width="760">
 
 ### Validate
 
@@ -185,13 +254,6 @@ corpora library show book.corpus --ref 1  # print the passages under a section
 the passages under a section.
 
 <img src="docs/corpora-library-show.svg" alt="corpora library show output">
-
-## Reference linking
-
-The development branch adds `corpora references check` and
-`corpora references retrieve --snapshot` for offline JSON validation and exact
-text retrieval. These require a linking-enabled Python build and are not yet
-available in the published Homebrew release. See the [usage and release sequence](docs/reference-linking.md).
 
 ## Credits
 

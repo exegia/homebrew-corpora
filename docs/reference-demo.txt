@@ -1,0 +1,28 @@
+Actual command results; temporary paths shown as demo-link.
+
+$ python docs/reference_demo.py demo-link
+Created a manual link between two verified text selections.
+Resolution: resolved. Review: pending. Publication: draft.
+
+
+Exit: 0
+
+$ corpora references check demo-link/reference.json
+{"schema_version":"0.1.0","id":"c2e13c18-386d-449b-bce8-a19b18d7e2ea","source":{"work_id":"reader-notes","edition_id":"demo-edition","package_id":"demo-package","revision":"sha256:cba3b6740cac88bfcea7b682c47a181b260810be81b15a9f3eec38e7df051dc6","document_id":"body.txt","locators":[{"kind":"text","stream_id":"body","start":9,"end":28,"exact":"Love your neighbor.","prefix":"My note: ","suffix":" This is my selection.","normalization":"preserve","offset_unit":"unicode-scalar"}]},"target":{"work_id":"demo-book","edition_id":"demo-edition","package_id":"demo-package","revision":"sha256:83539a80948834fb4fc540d539a7e0169bdf7dbd514ef43f20060f1527a8262c","document_id":"body.txt","locators":[{"kind":"text","stream_id":"body","start":10,"end":41,"exact":"Love your neighbor as yourself.","prefix":"Before. 😀 ","suffix":" After.","normalization":"preserve","offset_unit":"unicode-scalar"}]},"relationship":"core:related","provenance":{"origin":"manual","agent_id":"demo-reader","method":"exact-selection","evidence":[]},"resolution":"resolved","review":"pending","publication":"draft"}
+
+
+Exit: 0
+
+$ corpora references retrieve demo-link/target.json \
+    --snapshot demo-link/target-snapshot.json
+{"text": "Love your neighbor as yourself."}
+
+
+Exit: 0
+
+$ corpora references retrieve demo-link/target.json \
+    --snapshot demo-link/stale-snapshot.json
+
+Selection is stale, ambiguous or unavailable. Nothing was relocated.
+
+Exit: 1
