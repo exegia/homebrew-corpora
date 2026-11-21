@@ -27,6 +27,12 @@ if source.startswith(b"ignore"):
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     source_path.with_suffix(".ready").write_text("ready")
     time.sleep(30)
+if source.startswith(b"stubborn"):
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    source_path.with_suffix(".pid").write_text(str(os.getpid()))
+    source_path.with_suffix(".ready").write_text("ready")
+    time.sleep(30)
 invalid = source.startswith(b"invalid")
 diagnostics = []
 if invalid:
@@ -324,6 +330,49 @@ def test_sidecar_escalates_cancellation_when_checker_ignores_sigint(tmp_path, to
     assert finished["type"] == "finished"
     assert finished["outcome"] == "cancelled"
     assert not Path(accepted["staging_path"]).exists()
+    sidecar.finish()
+
+
+def _process_exists(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def test_sidecar_stops_descendants_that_ignore_sigterm_before_reporting_cancelled(tmp_path, tools):
+    source = tmp_path / "stubborn.epub"
+    source.write_bytes(b"stubborn checker")
+    output = tmp_path / "stubborn-cancel"
+    sidecar = SidecarProcess(tmp_path, tools)
+    sidecar.send(_start("start-stubborn", source, output))
+    accepted = sidecar.receive()
+    assert sidecar.receive()["phase"] == "validating"
+    stage = Path(accepted["staging_path"])
+    deadline = time.monotonic() + 3
+    while not (stage / "source.ready").exists() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert (stage / "source.ready").exists()
+    checker_pid = int((stage / "source.pid").read_text())
+
+    sidecar.send(
+        {
+            "protocol": 1,
+            "type": "cancel",
+            "request_id": "cancel-stubborn",
+            "job_id": accepted["job_id"],
+        }
+    )
+    assert sidecar.receive()["type"] == "cancel_ack"
+    finished = sidecar.receive(timeout=15)
+    assert finished["type"] == "finished"
+    assert finished["outcome"] == "cancelled"
+    # The terminal event promises the whole worker tree has stopped.
+    assert not _process_exists(checker_pid)
+    assert not stage.exists()
     sidecar.finish()
 
 
