@@ -90,7 +90,9 @@ def build(path: Path) -> Path:
         spine.append(chapter)
 
     book.toc = tuple(spine)
-    book.spine = ["nav", *spine]
+    # The nav document stays out of the reading order: corpora-epub-check
+    # rejects a spine that lists it (EPUB_NAV).
+    book.spine = spine
     book.add_item(epub.EpubNcx())
     book.add_item(epub.EpubNav())
 
