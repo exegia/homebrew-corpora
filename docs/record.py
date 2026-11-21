@@ -184,6 +184,10 @@ def main() -> int:
         with contextlib.suppress(SystemExit):
             cli.main(["convert", "--help"])
 
+    with _shot("corpora-convert-epub-help"):
+        with contextlib.suppress(SystemExit):
+            cli.main(["convert-epub", "--help"])
+
     with tempfile.TemporaryDirectory(prefix="corpora-docs-") as tmp:
         source = Path(tmp) / "The Art of War.txt"
         source.write_text(SAMPLE)

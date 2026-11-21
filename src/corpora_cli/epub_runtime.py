@@ -9,6 +9,11 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+# Default character-slot bound for local EPUB jobs. corpora-core has no fixed
+# ceiling, so callers may raise it; the core's 500 MiB byte limits still apply.
+# Jobs run on the user's own machine, so this is above the core's 1,000,000 default.
+DEFAULT_MAX_SLOTS = 8_000_000
+
 
 @dataclass(frozen=True)
 class EpubRuntime:
